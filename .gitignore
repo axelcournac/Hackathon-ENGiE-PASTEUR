@@ -1,0 +1,9 @@
+## Files to be ignored by GIT
+
+# Data files
+
+# DataBase
+*.csv
+*.txt
+*.zip
+*.png
