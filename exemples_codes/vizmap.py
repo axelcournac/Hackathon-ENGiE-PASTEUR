@@ -69,12 +69,16 @@ def sparse_to_dense(M):
     return E
 
 
-def plot_matrix(M, filename, vmax=99):
+def plot_matrix(M, filename=None, vmin=0, vmax=99, cmap='Reds'):
 
     del filename
     plt.figure()
     plt.imshow(
-        M, vmax=np.percentile(M, vmax), cmap="Reds", interpolation="none"
+        M,
+        vmin=vmin,
+        vmax=np.percentile(M, vmax),
+        cmap=cmap,
+        interpolation="none",
     )
     plt.colorbar()
     plt.axis("off")
