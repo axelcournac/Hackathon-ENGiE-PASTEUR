@@ -16,12 +16,9 @@ def normalize_all(path_input, path_output):
 
     return None
 
-def detrend_all(path_input, path_output)
-
-
 if __name__=='__main__':
 
-    path_input = Path(__file__).parent / 'data'
+    path_input = Path(__file__).parents[2] / 'data_simulated/TRAINING_SET'
     path_output = path_input / 'normalized'
 
     normalize_all(path_input, path_output)
