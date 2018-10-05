@@ -6,18 +6,31 @@ import hicstuff as hcs
 import pathlib
 from matplotlib import pyplot as plt
 from scipy.ndimage import measurements
-from scipy.ndimage import filters
 import haar_filter
-
-# import pattern_finder2
 from log import logger
-from scipy import stats
-from vizmap import plot_matrix
 
 N_POINTS = 30
 REALIZATION_NUMBER = np.random.random_integers(low=1, high=2000)
 WAVELET_PERCENTILE_CUTOFF = 96
+ALIGNMENT_PERCENTAGE = .1
+FEATURE_SIZE = 7
 NEIGHBORHOOD_KERNEL = [[1, 1, 1], [1, 1, 1], [1, 1, 1]]
+
+WORKING_DIR = pathlib.Path("/home/pepito/Hackathon-ENGiE-PASTEUR-master")
+TRAINING_SET_DIR = pathlib.Path("Training_Set/TRAINING_SET")
+REAL_SET_NAME = pathlib.Path(
+    "data/MAT_RAW_chr1_AT147_Pds5-AID-noTir1-G1-cdc20-TS_2kb.txt"
+)
+DATASET_NAME = pathlib.Path(f"MAT_RAW_realisation_{REALIZATION_NUMBER}.txt")
+
+DATASET_LOOPS_NAME = pathlib.Path(
+    f"Loops_realisation_{REALIZATION_NUMBER}.txt"
+)
+
+REAL_DATASET = WORKING_DIR / REAL_SET_NAME
+
+DATASET = WORKING_DIR / TRAINING_SET_DIR / DATASET_NAME
+DATASET_LOOPS = WORKING_DIR / TRAINING_SET_DIR / DATASET_LOOPS_NAME
 
 
 def diag_zscores(M):
@@ -180,7 +193,9 @@ def removed_aligned_features(matrix, alignment_percentage):
     return final_matrix
 
 
-def clip_matrix(matrix, offset=5):
+def clip_matrix(matrix, offset=None):
+    if offset is None:
+        offset = len(matrix) // 25
     clipped_matrix = np.zeros_like(matrix)
     clipped_matrix[offset:-offset, offset:-offset] = matrix[
         offset:-offset, offset:-offset
@@ -208,62 +223,66 @@ def plot_matrix_with_loops(
         plt.show()
 
 
-def main():
+def matrix_to_score(matrix, filename=None):
+    if filename is None:
+        return zip(*np.nonzero(matrix))
+    else:
+        with open(filename, "w") as handle:
+            for couple in zip(*np.nonzero(matrix)):
+                x, y = couple
+                handle.write(f"{x} {y}\n")
 
-    working_dir = pathlib.Path("/home/pepito/Hackathon-ENGiE-PASTEUR-master")
-    training_set_dir = pathlib.Path("Training_Set/TRAINING_SET")
-    real_set_name = pathlib.Path(
-        "data/MAT_RAW_chr1_AT147_Pds5-AID-noTir1-G1-cdc20-TS_2kb.txt"
-    )
-    dataset_name = pathlib.Path(
-        f"MAT_RAW_realisation_{REALIZATION_NUMBER}.txt"
-    )
-    dataset_loops_name = pathlib.Path(
-        f"Loops_realisation_{REALIZATION_NUMBER}.txt"
-    )
 
-    real_dataset = working_dir / real_set_name
-
-    dataset = working_dir / training_set_dir / dataset_name
-    dataset_loops = working_dir / training_set_dir / dataset_loops_name
-
-    matrix = np.loadtxt(dataset)
-
-    # ijs_res = pattern_finder2.pattern_finder2(matrix, with_plots=True)
-
-    loops = np.genfromtxt(dataset_loops).T
-    initial_matrix = np.array(np.genfromtxt(dataset))
+def do_everything(initial_matrix):
     normalized_matrix = hcs.normalize_dense(initial_matrix)
 
     detrended_matrix = detrend(normalized_matrix)
 
-    z_scored_matrix = diag_zscores(normalized_matrix)
+    # z_scored_matrix = diag_zscores(normalized_matrix)
 
     haar_filtered_matrix = haar_filter.haar_filter(
         detrended_matrix, thres_percentile=WAVELET_PERCENTILE_CUTOFF, level=1
     )
 
     alignment_filtered_matrix = removed_aligned_features(
-        haar_filtered_matrix, alignment_percentage=.1
+        haar_filtered_matrix, alignment_percentage=ALIGNMENT_PERCENTAGE
     )
 
     singleton_filtered_matrix = remove_singletons(
-        alignment_filtered_matrix, feature_size=7
+        alignment_filtered_matrix, feature_size=FEATURE_SIZE
     )
 
-    clipped_matrix = clip_matrix(singleton_filtered_matrix, offset=5)
+    clipped_matrix = clip_matrix(singleton_filtered_matrix)
 
-    assert not np.isnan(haar_filtered_matrix).any()
-    assert not np.isinf(haar_filtered_matrix).any()
+    return clipped_matrix
 
-    #    connected_matrix = keep_biggest_connected_component(detrended_matrix)
+
+def plot_everything(initial_matrix, dataset_loops):
+    normalized_matrix = hcs.normalize_dense(initial_matrix)
+
+    detrended_matrix = detrend(normalized_matrix)
+
+    haar_filtered_matrix = haar_filter.haar_filter(
+        detrended_matrix, thres_percentile=WAVELET_PERCENTILE_CUTOFF, level=1
+    )
+
+    alignment_filtered_matrix = removed_aligned_features(
+        haar_filtered_matrix, alignment_percentage=ALIGNMENT_PERCENTAGE
+    )
+
+    singleton_filtered_matrix = remove_singletons(
+        alignment_filtered_matrix, feature_size=FEATURE_SIZE
+    )
+
+    clipped_matrix = clip_matrix(singleton_filtered_matrix)
+
+    loops = np.genfromtxt(dataset_loops).T
 
     for title, M in zip(
         (
             "Initial matrix",
             "Normalized matrix",
             "Detrended matrix",
-            "Z scored matrix",
             "Haar filtered matrix",
             "Z scored haar filtered matrix",
             "Aligned elements removed matrix",
@@ -274,7 +293,6 @@ def main():
             initial_matrix,
             normalized_matrix,
             detrended_matrix,
-            z_scored_matrix,
             haar_filtered_matrix,
             diag_zscores(haar_filtered_matrix),
             alignment_filtered_matrix,
@@ -289,55 +307,55 @@ def main():
 
     plt.show()
 
-    exit()
 
-    plot_matrix_with_loops(
-        diag_zscores(initial_matrix),
-        loops=loops,
-        title="Z-scored matrix",
-        show=True,
-    )
+def load_and_loop(dataset):
+    matrix = np.loadtxt(dataset)
+    final_matrix = do_everything(matrix)
+    return np.array(matrix_to_score(final_matrix))
 
-    gaussianized_matrix = filters.gaussian_filter(initial_matrix, sigma=.5)
 
+def main():
+
+    # ijs_res = pattern_finder2.pattern_finder2(matrix, with_plots=True)
+
+    #    connected_matrix = keep_biggest_connected_component(detrended_matrix)
     # plot_matrix(gaussianized_matrix)
 
-    for matrix, thresh in iterative_threshold(haar_filtered_matrix, N_POINTS):
-        break
-        matrix_without_diagonal = remove_diagonal(matrix)
-        z_scored_matrix = diag_zscores(matrix_without_diagonal)
+    # for matrix, thresh in iterative_threshold(haar_filtered_matrix, N_POINTS):
+    #     break
+    #     matrix_without_diagonal = remove_diagonal(matrix)
+    #     z_scored_matrix = diag_zscores(matrix_without_diagonal)
 
-        if np.sum(matrix_without_diagonal) == 0 and thresh > 0:
-            logger.warning("Matrix is all zeros!")
-            break
+    #     if np.sum(matrix_without_diagonal) == 0 and thresh > 0:
+    #         logger.warning("Matrix is all zeros!")
+    #         break
 
-        title_original = f"Original matrix (thresh = {thresh})"
-        title_threshold = (
-            f"Thresholded matrix (thresh = {thresh})" " without diagonal"
-        )
-        title_zscore = (
-            f"Z-scored matrix (thesh = {thresh})" " with diagonal removed"
-        )
+    #     title_original = f"Original matrix (thresh = {thresh})"
+    #     title_threshold = (
+    #         f"Thresholded matrix (thresh = {thresh})" " without diagonal"
+    #     )
+    #     title_zscore = (
+    #         f"Z-scored matrix (thesh = {thresh})" " with diagonal removed"
+    #     )
 
-        assert np.isnan(matrix).sum() == 0
-        assert np.isinf(matrix).sum() == 0
-        assert np.isnan(matrix_without_diagonal).sum() == 0
-        assert np.isinf(matrix_without_diagonal).sum() == 0
-        assert np.isnan(z_scored_matrix).sum() == 0
-        assert np.isinf(z_scored_matrix).sum() == 0
+    #     assert np.isnan(matrix).sum() == 0
+    #     assert np.isinf(matrix).sum() == 0
+    #     assert np.isnan(matrix_without_diagonal).sum() == 0
+    #     assert np.isinf(matrix_without_diagonal).sum() == 0
+    #     assert np.isnan(z_scored_matrix).sum() == 0
+    #     assert np.isinf(z_scored_matrix).sum() == 0
 
-        plot_matrix_with_loops(
-            matrix, loops=loops, title=title_original, vmax=1
-        )
-        plot_matrix_with_loops(
-            matrix_without_diagonal, loops, title=title_threshold, vmax=1
-        )
-        print(matrix_without_diagonal)
-        plot_matrix_with_loops(
-            z_scored_matrix, loops=loops, title=title_zscore, vmax=3
-        )
-
-    plt.show()
+    #     plot_matrix_with_loops(
+    #         matrix, loops=loops, title=title_original, vmax=1
+    #     )
+    #     plot_matrix_with_loops(
+    #         matrix_without_diagonal, loops, title=title_threshold, vmax=1
+    #     )
+    #     print(matrix_without_diagonal)
+    #     plot_matrix_with_loops(
+    #         z_scored_matrix, loops=loops, title=title_zscore, vmax=3
+    #     )
+    pass
 
 
 if __name__ == "__main__":
