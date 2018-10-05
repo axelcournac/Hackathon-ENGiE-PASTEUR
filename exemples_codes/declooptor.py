@@ -8,7 +8,8 @@ from matplotlib import pyplot as plt
 from scipy.ndimage import measurements
 from scipy.ndimage import filters
 import haar_filter
-import pattern_finder2
+
+# import pattern_finder2
 from log import logger
 from scipy import stats
 from vizmap import plot_matrix
@@ -16,6 +17,7 @@ from vizmap import plot_matrix
 N_POINTS = 30
 REALIZATION_NUMBER = np.random.random_integers(low=1, high=2000)
 WAVELET_PERCENTILE_CUTOFF = 96
+NEIGHBORHOOD_KERNEL = [[1, 1, 1], [1, 1, 1], [1, 1, 1]]
 
 
 def diag_zscores(M):
@@ -50,7 +52,7 @@ def diag_zscores(M):
         mean = diagonal_trend[d]
         # logger.debug(f"{i}, {j}, {d}, {std}, {mean}")
         # D[i, j] = max((matrix[i, j] - mean) / std, 0)
-        D[i, j] = (matrix[i, j] - mean) / std
+        D[i, j] = (matrix[i, j] - mean) / std ** 2
     D[np.isnan(D)] = 0
     D[np.isinf(D)] = 0
     return D
@@ -142,22 +144,48 @@ def remove_diagonal(matrix):
     return filtered_matrix
 
 
-def remove_singletons(matrix):
+def remove_singletons(matrix, feature_size=1, kernel=None):
     """Remove all singleton pixels from a matrix.
 
     Arguments:
         matrix {numpy.ndarray} -- Input filtered matrix to process
     """
 
-    features, n_features = measurements.label(matrix)
+    features, n_features = measurements.label(matrix, structure=kernel)
     filtered_features = np.copy(matrix)
     for label in range(n_features):
         mask = features == label
-        if mask.sum() == 1:
+        if mask.sum() <= feature_size:
             filtered_features[mask] = 0
 
     filtered_matrix = matrix * filtered_features
     return filtered_matrix
+
+
+def removed_aligned_features(matrix, alignment_percentage):
+
+    n, m = matrix.shape
+    assert n == m
+
+    filtered_matrix = np.copy(matrix)
+    for i in range(n):
+        diag = np.diagonal(matrix, i)
+        if (diag > 0).sum() / len(diag) >= alignment_percentage:
+            d = len(diag)
+            filtered_matrix[np.arange(d), np.arange(d) + i] = 0
+
+    triu_matrix = np.triu(filtered_matrix)
+    final_matrix = (triu_matrix + triu_matrix.T) / 2
+
+    return final_matrix
+
+
+def clip_matrix(matrix, offset=5):
+    clipped_matrix = np.zeros_like(matrix)
+    clipped_matrix[offset:-offset, offset:-offset] = matrix[
+        offset:-offset, offset:-offset
+    ]
+    return clipped_matrix
 
 
 def plot_matrix_with_loops(
@@ -200,8 +228,8 @@ def main():
     dataset_loops = working_dir / training_set_dir / dataset_loops_name
 
     matrix = np.loadtxt(dataset)
-    ijs_res = pattern_finder2.pattern_finder2(matrix, with_plots=True)
-    exit()
+
+    # ijs_res = pattern_finder2.pattern_finder2(matrix, with_plots=True)
 
     loops = np.genfromtxt(dataset_loops).T
     initial_matrix = np.array(np.genfromtxt(dataset))
@@ -211,30 +239,52 @@ def main():
 
     z_scored_matrix = diag_zscores(normalized_matrix)
 
-    stds = [
-        np.std(np.diagonal(detrended_matrix, j))
-        for j in range(detrended_matrix.size)
-    ]
-
     haar_filtered_matrix = haar_filter.haar_filter(
         detrended_matrix, thres_percentile=WAVELET_PERCENTILE_CUTOFF, level=1
     )
+
+    alignment_filtered_matrix = removed_aligned_features(
+        haar_filtered_matrix, alignment_percentage=.1
+    )
+
+    singleton_filtered_matrix = remove_singletons(
+        alignment_filtered_matrix, feature_size=7
+    )
+
+    clipped_matrix = clip_matrix(singleton_filtered_matrix, offset=5)
 
     assert not np.isnan(haar_filtered_matrix).any()
     assert not np.isinf(haar_filtered_matrix).any()
 
     #    connected_matrix = keep_biggest_connected_component(detrended_matrix)
 
-    for M in (
-        initial_matrix,
-        normalized_matrix,
-        detrended_matrix,
-        z_scored_matrix,
-        haar_filtered_matrix,
+    for title, M in zip(
+        (
+            "Initial matrix",
+            "Normalized matrix",
+            "Detrended matrix",
+            "Z scored matrix",
+            "Haar filtered matrix",
+            "Z scored haar filtered matrix",
+            "Aligned elements removed matrix",
+            "Singleton filtered matrix",
+            "Clipped matrix",
+        ),
+        (
+            initial_matrix,
+            normalized_matrix,
+            detrended_matrix,
+            z_scored_matrix,
+            haar_filtered_matrix,
+            diag_zscores(haar_filtered_matrix),
+            alignment_filtered_matrix,
+            singleton_filtered_matrix,
+            clipped_matrix,
+        ),
     ):
 
         plot_matrix_with_loops(
-            M, loops=loops, title="Initial matrix", cmap="seismic"
+            np.tril(M), loops=loops, title=title, cmap="seismic", vmax=.1
         )
 
     plt.show()
