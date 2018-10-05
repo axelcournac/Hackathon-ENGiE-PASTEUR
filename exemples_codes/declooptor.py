@@ -8,7 +8,9 @@ from matplotlib import pyplot as plt
 from scipy.ndimage import measurements
 from scipy.ndimage import filters
 import haar_filter
+import pattern_finder2
 from log import logger
+from scipy import stats
 from vizmap import plot_matrix
 
 N_POINTS = 30
@@ -142,7 +144,7 @@ def remove_diagonal(matrix):
 
 def remove_singletons(matrix):
     """Remove all singleton pixels from a matrix.
-    
+
     Arguments:
         matrix {numpy.ndarray} -- Input filtered matrix to process
     """
@@ -182,6 +184,9 @@ def main():
 
     working_dir = pathlib.Path("/home/pepito/Hackathon-ENGiE-PASTEUR-master")
     training_set_dir = pathlib.Path("Training_Set/TRAINING_SET")
+    real_set_name = pathlib.Path(
+        "data/MAT_RAW_chr1_AT147_Pds5-AID-noTir1-G1-cdc20-TS_2kb.txt"
+    )
     dataset_name = pathlib.Path(
         f"MAT_RAW_realisation_{REALIZATION_NUMBER}.txt"
     )
@@ -189,8 +194,14 @@ def main():
         f"Loops_realisation_{REALIZATION_NUMBER}.txt"
     )
 
+    real_dataset = working_dir / real_set_name
+
     dataset = working_dir / training_set_dir / dataset_name
     dataset_loops = working_dir / training_set_dir / dataset_loops_name
+
+    matrix = np.loadtxt(dataset)
+    ijs_res = pattern_finder2.pattern_finder2(matrix, with_plots=True)
+    exit()
 
     loops = np.genfromtxt(dataset_loops).T
     initial_matrix = np.array(np.genfromtxt(dataset))
@@ -198,22 +209,33 @@ def main():
 
     detrended_matrix = detrend(normalized_matrix)
 
-    haar_filtered_matrix = haar_filter.haar_filter(
-        detrended_matrix, thres_percentile=WAVELET_PERCENTILE_CUTOFF
-    )
-    #    connected_matrix = keep_biggest_connected_component(detrended_matrix)
+    z_scored_matrix = diag_zscores(normalized_matrix)
 
-    x_loops, y_loops = loops
-    assert len(x_loops) == len(y_loops) > 2
+    stds = [
+        np.std(np.diagonal(detrended_matrix, j))
+        for j in range(detrended_matrix.size)
+    ]
+
+    haar_filtered_matrix = haar_filter.haar_filter(
+        detrended_matrix, thres_percentile=WAVELET_PERCENTILE_CUTOFF, level=1
+    )
+
+    assert not np.isnan(haar_filtered_matrix).any()
+    assert not np.isinf(haar_filtered_matrix).any()
+
+    #    connected_matrix = keep_biggest_connected_component(detrended_matrix)
 
     for M in (
         initial_matrix,
         normalized_matrix,
         detrended_matrix,
+        z_scored_matrix,
         haar_filtered_matrix,
     ):
 
-        plot_matrix_with_loops(M, loops=loops, title="Initial matrix")
+        plot_matrix_with_loops(
+            M, loops=loops, title="Initial matrix", cmap="seismic"
+        )
 
     plt.show()
 
