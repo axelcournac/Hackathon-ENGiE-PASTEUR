@@ -3,7 +3,8 @@ import scipy.signal as sci
 import scipy.stats as stats
 import pandas as pd
 import matplotlib.pyplot as plt
-import glob as globfolder = "/home/remi/Desktop/Pasteur/Hackaton/Hackathon-ENGiE-PASTEUR/normalized/"N = 289
+import glob as globfolder = "/home/remi/Desktop/Pasteur/Hackaton/Hackathon-ENGiE-PASTEUR/normalized/"
+N = 289
 count=0
 
 # Compute the mean matrix of all the simulations
