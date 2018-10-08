@@ -1,7 +1,6 @@
 #!python3
 # coding: utf-8
 
-# In[28]:
 import sys
 import os
 import numpy as np
@@ -17,10 +16,7 @@ import matplotlib.patches as patches
 
 
 from scipy.ndimage import label, generate_binary_structure
-
 from pathlib import Path
-
-# In[4]:
 
 
 def deletes_small_objects(mat, n):
@@ -61,8 +57,6 @@ def compute_fish_algo(matrix_path,out_fold):
     N = 289
     count=0
 
-
-    # In[33]:
     mat = np.loadtxt("TRAINING_SET/" + matrix_path, dtype=np.float)
     mean_matrix = np.loadtxt(folder + "/mean_matrix.txt", dtype=np.float)
     std_matrix = np.loadtxt(folder + "/std_matrix.txt", dtype=np.float)
@@ -70,10 +64,6 @@ def compute_fish_algo(matrix_path,out_fold):
     mat_centered_reduced = np.divide(mat_centered, std_matrix)
     mat_centered_reduced[np.isnan(mat_centered_reduced)] = 0
     mat2 = mat_centered_reduced
-
-
-    # In[34]:
-
 
     # plt.figure()
     # plt.imshow(mat2, cmap="afmhot_r", interpolation="none")#, vmin=0, vmax=0.5)
@@ -91,9 +81,6 @@ def compute_fish_algo(matrix_path,out_fold):
     # plt.imshow(z, cmap="afmhot_r")
 
 
-    # In[45]:
-
-
     res = np.zeros((289, 289))
     for i in range(289-16):
      for j in range(289-16):
@@ -102,29 +89,16 @@ def compute_fish_algo(matrix_path,out_fold):
     # plt.imshow(res, cmap="afmhot_r", interpolation="none")#, vmin=0.1)
     # plt.colorbar()#, vmin=0, vmax=0.8)
 
-
-    # In[46]:
-
-
     std = 1./0.675 * np.median(np.abs(res - np.median(res)))
-
-
-    # In[55]:
-
 
     cut = np.copy(res)
     cut[cut < np.median(cut) + 4.*std] = 0
-
-
-    # In[57]:
 
 
     np.save(folder+"thresholded", cut)
     # plt.imshow(cut, cmap="afmhot_r", interpolation="none")#, vmin=0.1)
     # plt.colorbar()#, vmin=0, vmax=0.8)
 
-
-    # In[54]:
     n = 0
     positions = []
     cut2 = np.copy(cut)
