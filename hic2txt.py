@@ -67,28 +67,51 @@ def generate_matrix(results):
 #==============================================================================
 # MAIN
 #==============================================================================
-infile = pre + 'Yeast/data/TADs/AT147/aligned_AT147_S288C/inter_30.hic'
-normalization='NONE'
-unit = 'BP'
-binnage = 5000
-output_dir = pre + 'Yeast/data/TADs/AT147/aligned_AT147_S288C/txt_matrices/'
-chr_list = [str(i+1) for i in range(16)]
-
-if not os.path.isdir(output_dir): 
-    os.mkdir(output_dir)
-
-for chrm in chr_list:
-    # Extract data from .hic format
-    result = straw.straw(normalization, infile, chrm, chrm, unit, binnage)
-
-    # Put them in an array
-    mat = generate_matrix(result)
+def main():
+    infile = pre + 'Yeast/data/TADs/AT147/aligned_AT147_S288C/inter_30.hic'
+    normalization='NONE'
+    unit = 'BP'
+    binnage = 5000
+    output_dir = pre + 'Yeast/data/TADs/AT147/aligned_AT147_S288C/txt_matrices/'
+    chr_list = [str(i+1) for i in range(16)]
     
-    # SCN of the matrix
-    mn = scn_func(mat, 0)
+    # Sanity checks.
+    ## infile exists.
+    if not os.path.isfile(infile):
+        sys.stderr.write('ERROR: The input file does not exist. Please check the file given as input.\nEXIT.\n')
+        sys.exit(1)
+
+    ## output directory does not exist already.
+    try:       
+       os.mkdir(output_dir)
+    except OSError:
+        sys.stderr.write('ERROR: The output directory already exists. Please remove it or change output directory.\nEXIT.\n')
+        sys.exit(2)
+    except:
+        sys.stderr.write('ERROR when creating the output directory.\nEXIT.\n')
+        sys.exit(2)
     
-    # Save the matrix
-    np.savetxt('{0}chr{1}.txt'.format(output_dir, chrm), mn)
+    # Conversion
+    for chrm in chr_list:
+        ## extract data from .hic format
+        try:        
+            result = straw.straw(normalization, infile, chrm, chrm, unit, binnage)
+        except TypeError:
+            sys.stderr.write('ERROR when converting the format. Make sure the chromosome names are correct and that the bin resolution exists.\nEXIT.\n')
+            sys.exit(3)
+
+        ## put them in an numpy array
+        mat = generate_matrix(result)
+        
+        ## SCN of the array
+        mn = scn_func(mat, 0)
+        
+        ## save the array
+        np.savetxt('{0}chr{1}.txt'.format(output_dir, chrm), mn)
+
+
+if __name__ == '__main__':
+    main()
 
 #plt.figure()
 #plt.imshow(mn**0.2, cmap='afmhot_r', interpolation='none')
